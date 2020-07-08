@@ -1,16 +1,5 @@
 #!/bin/bash
 
-INSTALL_DIR=/usr/local/bin
-SCRIPT_NAME=$INSTALL_DIR/locationchanger
-LAUNCH_AGENTS_DIR=$HOME/Library/LaunchAgents
-PLIST_NAME=$LAUNCH_AGENTS_DIR/LocationChanger.plist
-
-sudo -v
-
-sudo mkdir -p $INSTALL_DIR
-cat << "EOT" | sudo tee $SCRIPT_NAME > /dev/null
-#!/bin/bash
-
 # This script changes network location based on the name of Wi-Fi network.
 
 exec 2>&1 >> $HOME/Library/Logs/LocationChanger.log
@@ -34,10 +23,14 @@ if [ -f $CONFIG_FILE ]; then
     ESSID=`echo "$SSID" | sed 's/[.[\*^$]/\\\\&/g'`
     NEW_SSID=`grep "^$ESSID=" $CONFIG_FILE | cut -d = -f 2`
     if [ "$NEW_SSID" != "" ]; then
-        ts "Will switch the location to '$NEW_SSID' (configuration file)"
+        MSG="Will switch the location to '$NEW_SSID' (configuration file)"
+        ts $MSG
+
         SSID=$NEW_SSID
     else
-        ts "Will switch the location to '$SSID'"
+        MSG="Will switch the location to '$SSID'"
+        ts $MSG
+
     fi
 fi
 
@@ -47,16 +40,20 @@ if echo "$LOCATION_NAMES" | grep -q "^$ESSID$"; then
 else
     if echo "$LOCATION_NAMES" | grep -q "^Automatic$"; then
         NEW_LOCATION=Automatic
-        ts "Location '$SSID' was not found. Will default to 'Automatic'"
+        MSG="Location '$SSID' was not found. Will default to 'Automatic'"
+        ts $MSG
     else
-        ts "Location '$SSID' was not found. The following locations are available: $LOCATION_NAMES"
+        MSG="Location '$SSID' was not found. The following locations are available: $LOCATION_NAMES"
+        ts $MSG
         exit 1
     fi
 fi
 
 if [ "$NEW_LOCATION" != "" ]; then
     if [ "$NEW_LOCATION" != "$CURRENT_LOCATION" ]; then
-        ts "Changing the location to '$NEW_LOCATION'"
+        MSG="Changing the location to '$NEW_LOCATION'"
+        ts $MSG
+        osascript -e "display notification \"$MSG\" with title \"Location switcher\" sound name \"Blow\""
         scselect "$NEW_LOCATION"
         SCRIPT="$HOME/.locations/$NEW_LOCATION"
         if [ -f "$SCRIPT" ]; then
@@ -64,33 +61,8 @@ if [ "$NEW_LOCATION" != "" ]; then
             "$SCRIPT"
         fi
     else
-        ts "Already at '$NEW_LOCATION'"
+        MSG="Already at '$NEW_LOCATION'"
+        ts $MSG
+        osascript -e "display notification \"$MSG\" with title \"Location switcher\" sound name \"Blow\""
     fi
 fi
-EOT
-
-sudo chmod +x $SCRIPT_NAME
-
-mkdir -p $LAUNCH_AGENTS_DIR
-cat > $PLIST_NAME << EOT
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>locationchanger</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/usr/local/bin/locationchanger</string>
-    </array>
-    <key>WatchPaths</key>
-    <array>
-        <string>/Library/Preferences/SystemConfiguration/com.apple.airport.preferences.plist</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-</dict>
-</plist>
-EOT
-
-launchctl load $PLIST_NAME
